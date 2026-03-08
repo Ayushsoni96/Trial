@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>TON Purchase Prototype</title>
+
+<!-- Telegram Web App SDK -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<!-- TON Connect SDK -->
+<script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: #0a0a1a;
+  color: #fff;
+  font-family: monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px;
+  gap: 20px;
+}
+
+/* HEADER */
+.header {
+  width: 100%;
+  max-width: 400px;
+  background: #111;
+  border: 2px solid #333;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header .title { font-size: 13px; color: #888; }
+.header .coins { font-size: 22px; font-weight: bold; color: #FFD700; }
+.header .coins span { font-size: 12px; color: #888; display: block; }
+
+/* WALLET SECTION */
+.wallet-section {
+  width: 100%;
+  max-width: 400px;
+  background: #111;
+  border: 2px solid #1a3a6a;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wallet-section h3 { color: #4a9eff; font-size: 12px; letter-spacing: 1px; }
+#ton-connect-btn {
+  background: #0088cc;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  font-family: monospace;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  letter-spacing: 1px;
+}
+#ton-connect-btn:active { opacity: 0.8; }
+.wallet-status {
+  font-size: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  text-align: center;
+  background: #0a1a0a;
+  color: #888;
+  border: 1px solid #333;
+}
+.wallet-status.connected {
+  background: #0a2a0a;
+  color: #4CAF50;
+  border-color: #2a6a2a;
+}
+
+/* PACKAGES */
+.packages-title {
+  font-size: 11px;
+  color: #888;
+  letter-spacing: 1px;
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
+}
+.packages {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pkg {
+  background: #111;
+  border: 2px solid #333;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.pkg:active { background: #1a1a1a; }
+.pkg.popular { border-color: #FFD700; position: relative; }
+.pkg.popular::before {
+  content: 'POPULAR';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #FFD700;
+  color: #000;
+  font-size: 7px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  letter-spacing: 1px;
+}
+.pkg-left { display: flex; align-items: center; gap: 12px; }
+.pkg-icon { font-size: 28px; }
+.pkg-info { display: flex; flex-direction: column; gap: 2px; }
+.pkg-coins { font-size: 16px; font-weight: bold; color: #FFD700; }
+.pkg-coins span { font-size: 10px; color: #888; }
+.pkg-bonus { font-size: 9px; color: #4CAF50; }
+.pkg-price {
+  background: #0088cc;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-family: monospace;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.pkg-price:active { opacity: 0.8; }
+.pkg-price.disabled { background: #333; color: #666; cursor: not-allowed; }
+
+/* TRANSACTION LOG */
+.tx-section {
+  width: 100%;
+  max-width: 400px;
+  background: #111;
+  border: 2px solid #333;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tx-section h3 { color: #888; font-size: 11px; letter-spacing: 1px; }
+.tx-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+.tx-item {
+  font-size: 9px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border-left: 3px solid #333;
+  background: #0a0a0a;
+  color: #888;
+  line-height: 1.6;
+}
+.tx-item.success { border-left-color: #4CAF50; color: #4CAF50; }
+.tx-item.pending { border-left-color: #FFD700; color: #FFD700; }
+.tx-item.error { border-left-color: #f44; color: #f44; }
+
+/* MODAL */
+#modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.9);
+  z-index: 100;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 20px;
+}
+#modal.show { display: flex; }
+.modal-box {
+  background: #111;
+  border: 2px solid #FFD700;
+  border-radius: 16px;
+  padding: 24px 20px;
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.modal-icon { font-size: 48px; }
+.modal-title { font-size: 16px; font-weight: bold; color: #FFD700; }
+.modal-sub { font-size: 10px; color: #888; line-height: 1.8; }
+.modal-coins { font-size: 28px; font-weight: bold; color: #FFD700; }
+.modal-btns { display: flex; gap: 10px; width: 100%; }
+.modal-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 11px;
+  font-family: monospace;
+  font-weight: bold;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.modal-btn.confirm { background: #0088cc; color: #fff; }
+.modal-btn.cancel { background: #333; color: #888; }
+
+/* LOADING SPINNER */
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid #333;
+  border-top-color: #0088cc;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* NOTE */
+.note {
+  width: 100%;
+  max-width: 400px;
+  background: #0a1a2a;
+  border: 1px solid #1a3a5a;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 8px;
+  color: #4a7aaa;
+  line-height: 1.8;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<!-- COIN BALANCE -->
+<div class="header">
+  <div>
+    <div class="title">YOUR BALANCE</div>
+    <div class="coins" id="coin-display">&#x1FA99; <span id="coin-count">0</span></div>
+  </div>
+  <div style="font-size:32px;">&#x26CF;&#xFE0F;</div>
+</div>
+
+<!-- WALLET CONNECT -->
+<div class="wallet-section">
+  <h3>&#x1F4B3; TON WALLET</h3>
+  <div id="wallet-status" class="wallet-status">Not connected — connect wallet to purchase</div>
+  <button id="ton-connect-btn" onclick="connectWallet()">&#x1F517; CONNECT TON WALLET</button>
+</div>
+
+<!-- PACKAGES -->
+<div class="packages-title">&#x1FA99; COIN PACKAGES</div>
+<div class="packages">
+
+  <div class="pkg" onclick="buyPackage(0)">
+    <div class="pkg-left">
+      <div class="pkg-icon">&#x1FA99;</div>
+      <div class="pkg-info">
+        <div class="pkg-coins">100 <span>Coins</span></div>
+        <div class="pkg-bonus">Starter Pack</div>
+      </div>
+    </div>
+    <button class="pkg-price" id="btn-0">0.1 TON</button>
+  </div>
+
+  <div class="pkg popular" onclick="buyPackage(1)">
+    <div class="pkg-left">
+      <div class="pkg-icon">&#x1F4B0;</div>
+      <div class="pkg-info">
+        <div class="pkg-coins">500 <span>Coins</span></div>
+        <div class="pkg-bonus">+50 Bonus Coins!</div>
+      </div>
+    </div>
+    <button class="pkg-price" id="btn-1">0.5 TON</button>
+  </div>
+
+  <div class="pkg" onclick="buyPackage(2)">
+    <div class="pkg-left">
+      <div class="pkg-icon">&#x1F48E;</div>
+      <div class="pkg-info">
+        <div class="pkg-coins">1000 <span>Coins</span></div>
+        <div class="pkg-bonus">+200 Bonus Coins!</div>
+      </div>
+    </div>
+    <button class="pkg-price" id="btn-2">0.9 TON</button>
+  </div>
+
+  <div class="pkg" onclick="buyPackage(3)">
+    <div class="pkg-left">
+      <div class="pkg-icon">&#x1F451;</div>
+      <div class="pkg-info">
+        <div class="pkg-coins">3000 <span>Coins</span></div>
+        <div class="pkg-bonus">+800 Bonus Coins! BEST VALUE</div>
+      </div>
+    </div>
+    <button class="pkg-price" id="btn-3">2.5 TON</button>
+  </div>
+
+</div>
+
+<!-- TX LOG -->
+<div class="tx-section">
+  <h3>&#x1F4CB; TRANSACTION LOG</h3>
+  <div class="tx-log" id="tx-log">
+    <div class="tx-item">No transactions yet...</div>
+  </div>
+</div>
+
+<!-- NOTE -->
+<div class="note">
+  &#x26A0;&#xFE0F; This is a PROTOTYPE / TEST build.<br>
+  Real TON transactions will work when hosted on Telegram Mini App.<br>
+  Wallet: TON Connect 2.0 | Network: TON Mainnet
+</div>
+
+<!-- CONFIRM MODAL -->
+<div id="modal">
+  <div class="modal-box">
+    <div class="modal-icon" id="modal-icon">&#x1FA99;</div>
+    <div class="modal-title" id="modal-title">CONFIRM PURCHASE</div>
+    <div class="modal-sub" id="modal-sub">You are about to buy coins</div>
+    <div class="modal-coins" id="modal-coins">+500 Coins</div>
+    <div class="modal-btns">
+      <button class="modal-btn cancel" onclick="closeModal()">CANCEL</button>
+      <button class="modal-btn confirm" onclick="confirmPurchase()">CONFIRM</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================
+// TELEGRAM SDK INIT
+// =============================================
+var tg = window.Telegram && window.Telegram.WebApp;
+if(tg){
+  tg.ready();
+  tg.expand();
+  tg.BackButton.show();
+  tg.BackButton.onClick(function(){ tg.close(); });
+}
+
+// =============================================
+// STATE
+// =============================================
+var coins = parseInt(localStorage.getItem('proto_coins') || '0');
+var walletAddress = null;
+var pendingPkg = null;
+var isConnecting = false;
+
+// Packages definition
+var PACKAGES = [
+  { coins: 100,  bonus: 0,   ton: 0.1, icon: '&#x1FA99;', label: 'Starter Pack' },
+  { coins: 500,  bonus: 50,  ton: 0.5, icon: '&#x1F4B0;', label: 'Popular Pack' },
+  { coins: 1000, bonus: 200, ton: 0.9, icon: '&#x1F48E;', label: 'Pro Pack' },
+  { coins: 3000, bonus: 800, ton: 2.5, icon: '&#x1F451;', label: 'King Pack' },
+];
+
+// =============================================
+// COIN DISPLAY
+// =============================================
+function updateCoins(){
+  document.getElementById('coin-count').textContent = coins;
+  localStorage.setItem('proto_coins', coins);
+}
+updateCoins();
+
+// =============================================
+// WALLET CONNECT (TON Connect 2.0)
+// =============================================
+var tonConnectUI = null;
+
+function initTonConnect(){
+  try {
+    tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+      manifestUrl: 'https://raw.githubusercontent.com/ton-connect/demo-dapp/master/public/tonconnect-manifest.json',
+      buttonRootId: null // we handle button ourselves
+    });
+
+    tonConnectUI.onStatusChange(function(wallet){
+      if(wallet){
+        walletAddress = wallet.account.address;
+        var shortAddr = walletAddress.slice(0,6)+'...'+walletAddress.slice(-4);
+        document.getElementById('wallet-status').textContent = '✅ Connected: ' + shortAddr;
+        document.getElementById('wallet-status').className = 'wallet-status connected';
+        document.getElementById('ton-connect-btn').textContent = '🔗 WALLET CONNECTED';
+        document.getElementById('ton-connect-btn').style.background = '#2a6a2a';
+        addLog('Wallet connected: ' + shortAddr, 'success');
+        enableButtons();
+      } else {
+        walletAddress = null;
+        document.getElementById('wallet-status').textContent = 'Not connected — connect wallet to purchase';
+        document.getElementById('wallet-status').className = 'wallet-status';
+        document.getElementById('ton-connect-btn').textContent = '🔗 CONNECT TON WALLET';
+        document.getElementById('ton-connect-btn').style.background = '#0088cc';
+        disableButtons();
+      }
+    });
+  } catch(e) {
+    addLog('TON Connect init failed: ' + e.message, 'error');
+  }
+}
+
+function connectWallet(){
+  if(!tonConnectUI){
+    addLog('TON Connect not loaded yet...', 'pending');
+    return;
+  }
+  if(walletAddress){
+    // Disconnect
+    tonConnectUI.disconnect();
+    return;
+  }
+  tonConnectUI.openModal();
+  addLog('Opening wallet selector...', 'pending');
+}
+
+function enableButtons(){
+  for(var i=0;i<4;i++){
+    var btn = document.getElementById('btn-'+i);
+    if(btn) btn.classList.remove('disabled');
+  }
+}
+function disableButtons(){
+  for(var i=0;i<4;i++){
+    var btn = document.getElementById('btn-'+i);
+    if(btn) btn.classList.add('disabled');
+  }
+}
+// Initially disable until wallet connected
+disableButtons();
+
+// =============================================
+// BUY FLOW
+// =============================================
+function buyPackage(idx){
+  if(!walletAddress){
+    addLog('Connect wallet first!', 'error');
+    shakeWallet();
+    return;
+  }
+  pendingPkg = PACKAGES[idx];
+  // Show confirm modal
+  document.getElementById('modal-icon').innerHTML = pendingPkg.icon;
+  document.getElementById('modal-title').textContent = 'CONFIRM PURCHASE';
+  var totalCoins = pendingPkg.coins + pendingPkg.bonus;
+  document.getElementById('modal-coins').textContent = '+' + totalCoins + ' Coins';
+  document.getElementById('modal-sub').innerHTML =
+    pendingPkg.label + '<br>' +
+    pendingPkg.ton + ' TON will be deducted from your wallet<br>' +
+    (pendingPkg.bonus > 0 ? '&#x1F381; Includes +'+pendingPkg.bonus+' bonus coins!' : '');
+  document.getElementById('modal').classList.add('show');
+}
+
+function closeModal(){
+  document.getElementById('modal').classList.remove('show');
+  pendingPkg = null;
+}
+
+async function confirmPurchase(){
+  if(!pendingPkg || !tonConnectUI) return;
+  document.getElementById('modal').classList.remove('show');
+
+  var pkg = pendingPkg;
+  pendingPkg = null;
+  var totalCoins = pkg.coins + pkg.bonus;
+
+  addLog('Sending ' + pkg.ton + ' TON... please confirm in wallet', 'pending');
+
+  try {
+    // Convert TON to nanoTON (1 TON = 1,000,000,000 nanoTON)
+    var nanoTon = Math.floor(pkg.ton * 1e9).toString();
+
+    var tx = {
+      validUntil: Math.floor(Date.now() / 1000) + 300, // 5 min
+      messages: [
+        {
+          // YOUR WALLET ADDRESS HERE - replace with your actual TON wallet
+          address: 'UQCXHdKOQkckQ8xu-4h2Sqh8hav1WWEfAbAXIH1rdx20HsHF',
+          amount: nanoTon,
+          payload: btoa('minecraft_coins_' + pkg.coins) // base64 comment
+        }
+      ]
+    };
+
+    var result = await tonConnectUI.sendTransaction(tx);
+
+    if(result){
+      // SUCCESS - add coins
+      coins += totalCoins;
+      updateCoins();
+      addLog('✅ SUCCESS! +' + totalCoins + ' coins added | BOC: ' + result.boc.slice(0,20) + '...', 'success');
+      showSuccess(totalCoins, pkg.icon);
+    }
+  } catch(e) {
+    if(e.message && e.message.includes('User rejects')){
+      addLog('Transaction cancelled by user', 'error');
+    } else {
+      addLog('Transaction failed: ' + (e.message || 'Unknown error'), 'error');
+    }
+  }
+}
+
+function showSuccess(totalCoins, icon){
+  document.getElementById('modal-icon').innerHTML = icon;
+  document.getElementById('modal-title').textContent = 'PURCHASE SUCCESS!';
+  document.getElementById('modal-coins').textContent = '+' + totalCoins + ' Coins Added!';
+  document.getElementById('modal-sub').textContent = 'Transaction confirmed on TON blockchain';
+  document.getElementById('modal').classList.add('show');
+  // Remove confirm/cancel, show only close
+  document.querySelector('.modal-btns').innerHTML =
+    '<button class="modal-btn confirm" onclick="closeModal()" style="flex:1">AWESOME!</button>';
+}
+
+// =============================================
+// TRANSACTION LOG
+// =============================================
+function addLog(msg, type){
+  var log = document.getElementById('tx-log');
+  // Remove "No transactions" placeholder
+  if(log.children.length === 1 && log.children[0].textContent === 'No transactions yet...'){
+    log.innerHTML = '';
+  }
+  var time = new Date().toLocaleTimeString();
+  var item = document.createElement('div');
+  item.className = 'tx-item ' + (type||'');
+  item.textContent = '[' + time + '] ' + msg;
+  log.insertBefore(item, log.firstChild);
+  // Max 8 logs
+  while(log.children.length > 8) log.removeChild(log.lastChild);
+}
+
+// =============================================
+// WALLET SHAKE ANIMATION
+// =============================================
+function shakeWallet(){
+  var ws = document.querySelector('.wallet-section');
+  ws.style.transition = 'transform 0.08s';
+  var times = 0;
+  var shake = setInterval(function(){
+    ws.style.transform = times%2===0 ? 'translateX(6px)' : 'translateX(-6px)';
+    times++;
+    if(times > 5){ clearInterval(shake); ws.style.transform = ''; }
+  }, 80);
+}
+
+// =============================================
+// INIT
+// =============================================
+window.onload = function(){
+  // Small delay to let SDK load
+  setTimeout(initTonConnect, 500);
+  addLog('Prototype loaded. Connect wallet to start.', '');
+};
+</script>
+</body>
+</html>
